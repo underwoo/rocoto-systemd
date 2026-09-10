@@ -1,0 +1,28 @@
+# Normally you do NOT hand-write this -- run new-workflow.sh and it generates
+#   ~/.config/rocoto-systemd/<instance>.scrontab
+# ready to paste into `scrontab -e`.  This file is the annotated reference.
+#
+# The watchdog:
+#   - verifies user lingering (tries to enable it; fails loudly if it can't);
+#   - verifies this is the pinned node (if PIN_NODE is set) and refuses otherwise;
+#   - starts rocoto-workflow@<instance>.service if it died and the workflow
+#     is not settled;
+#   - once the workflow has NO Active cycles, stops the service and runs
+#     `scancel` on itself.  Slurm then prepends "#DISABLED: " to the lines
+#     below and no further cycle runs -- a clean, automatic shutdown.
+#
+# Everything the run needs is passed through --export (comma-separated, NO spaces).
+# INSTANCE is optional (defaults to the basename of WD).
+# PIN_NODE + --nodelist are present only when the instance is node-isolated.
+
+#SCRON --partition=cron_c6
+#SCRON --account=bil-fire2-oar
+#SCRON --time=00:03:00
+#SCRON --mem=2G
+#SCRON --job-name=rocoto_wd_rrfsdet
+#SCRON --dependency=singleton
+#SCRON --nodelist=gaea61
+#SCRON --export=WF=/gpfs/f6/arfs-gsl/world-shared/gge/rrfs2/regressionTests/conus12km/exp/rrfsdet/rrfs.xml,DB=/gpfs/f6/arfs-gsl/world-shared/gge/rrfs2/regressionTests/conus12km/exp/rrfsdet/rrfs.db,WD=/gpfs/f6/arfs-gsl/world-shared/gge/rrfs2/regressionTests/conus12km/exp/rrfsdet,INSTANCE=rrfsdet,PIN_NODE=gaea61,ROCOTO_MODULEPATH=/gpfs/f6/arfs-gsl/world-shared/gge/rocoto/modulefiles,ROCOTO_MODULE=rocoto/1.3.7g,VERBOSITY=10
+#SCRON --output=/gpfs/f6/arfs-gsl/world-shared/gge/rrfs2/regressionTests/conus12km/exp/rrfsdet/logs/watchdog_rrfsdet.out
+
+*/5 * * * * REPLACE_WITH_HOME/rocoto-systemd/watchdog.sh

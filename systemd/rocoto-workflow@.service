@@ -1,0 +1,54 @@
+# systemd --user template unit -- one instance per workflow.
+#
+# Install:   ~/.config/systemd/user/rocoto-workflow@.service
+# Env file:  ~/.config/rocoto-systemd/<instance>.env   (WF=, DB=, WD=, ...)
+# Scripts:   ~/rocoto-systemd/{loop.sh,node-guard.sh,common.sh}   (see install.sh)
+#
+# Run once, no scheduler:   systemctl --user start        rocoto-workflow@<instance>
+# Survive reboots:          systemctl --user enable --now rocoto-workflow@<instance>
+#                           (loop.sh `disable`s it again once the workflow finishes)
+#
+# ANY unattended use REQUIRES user lingering:
+#     loginctl enable-linger <user>
+
+[Unit]
+Description=Rocoto workflow driver (%i)
+StartLimitIntervalSec=300
+StartLimitBurst=10
+
+[Service]
+Type=simple
+EnvironmentFile=%h/.config/rocoto-systemd/%i.env
+WorkingDirectory=%h
+# Refuse to start on the wrong node when the instance is pinned (PIN_NODE in the env file):
+ExecStartPre=%h/rocoto-systemd/node-guard.sh
+ExecStart=%h/rocoto-systemd/loop.sh
+
+# Clean exit (workflow settled) => stays stopped.  Only a crash restarts it.
+Restart=on-failure
+RestartSec=60
+# node-guard.sh exits 70 on the wrong node / loop.sh exits 78 on bad config:
+# do not retry-loop those.
+RestartPreventExitStatus=70 78
+
+# --- the service's own append-only log -------------------------------------
+# StandardOutput=append: needs systemd >= v240.  Check `systemctl --version`.
+# If older: change both to `journal` -- loop.sh will append to the same file itself.
+StandardOutput=append:%h/rocoto-systemd/logs/%i.service.log
+StandardError=append:%h/rocoto-systemd/logs/%i.service.log
+SyslogIdentifier=rocoto-%i
+
+# --- resource backstops --------------------------------------------------
+MemoryAccounting=yes
+MemoryHigh=1G
+MemoryMax=2G
+TasksAccounting=yes
+TasksMax=256
+# Optional HARD wall-clock cap (systemd SIGKILLs the service).  Left off so long
+# realtime workflows are not killed; loop.sh's MAX_RUNTIME is the soft equivalent.
+# Enable per install with:  systemctl --user edit rocoto-workflow@<instance>
+#   [Service]
+#   RuntimeMaxSec=604800
+
+[Install]
+WantedBy=default.target
