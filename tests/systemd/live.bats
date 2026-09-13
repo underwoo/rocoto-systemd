@@ -103,6 +103,16 @@ wait_inactive() { # wait_inactive UNIT [seconds]
 
 prop() { systemctl --user show "$1" -p "$2" --value; }
 
+# assert_prop UNIT PROPERTY EXPECTED -- on mismatch, say what systemd reported.
+assert_prop() {
+  local got
+  got="$(prop "$1" "$2")"
+  [ "$got" = "$3" ] && return 0
+  echo "$1: expected $2=$3, got '$got'" >&2
+  systemctl --user status --no-pager "$1" >&2 || true
+  return 1
+}
+
 # ------------------------------------------------------------------ tests ---
 
 @test "the unit file passes systemd-analyze verify" {
@@ -181,17 +191,26 @@ prop() { systemctl --user show "$1" -p "$2" --value; }
 @test "a wrong-node start is skipped: inactive, not failed, no restart queued" {
   make_stub_rocoto Active
   write_env "$PINNED_INSTANCE" "PIN_NODE=definitely-not-this-host"
+  log="$HOME/rocoto-systemd/logs/${PINNED_INSTANCE}.service.log"
+  rm -f "$log"
   install_and_reload
   systemctl --user reset-failed "$PINNED_UNIT" 2>/dev/null || true
   systemctl --user start "$PINNED_UNIT" || true
   wait_inactive "$PINNED_UNIT"
-  [ "$(prop "$PINNED_UNIT" Result)" = "exec-condition" ]
-  [ "$(prop "$PINNED_UNIT" ActiveState)" = "inactive" ]
-  # A queued restart shows as SubState=auto-restart for all of RestartSec;
-  # "dead" means none is coming.
-  [ "$(prop "$PINNED_UNIT" SubState)" = "dead" ]
-  [ "$(prop "$PINNED_UNIT" NRestarts)" = "0" ]
-  grep -q "refusing to start" "$HOME/rocoto-systemd/logs/${PINNED_INSTANCE}.service.log"
+  # Not Result=exec-condition: a skipped unit is inactive, and systemd unloads
+  # inactive units (CollectMode=inactive, the default), so by the next `show`
+  # it reports a freshly loaded unit's defaults.  What does survive: a failed
+  # unit stays "failed", and a queued restart holds it in activating /
+  # auto-restart for all of RestartSec -- so "inactive" + "dead" rules out both.
+  assert_prop "$PINNED_UNIT" ActiveState inactive
+  assert_prop "$PINNED_UNIT" SubState dead
+  assert_prop "$PINNED_UNIT" NRestarts 0
+  # The guard ran and said why; loop.sh never started.
+  grep -q "refusing to start" "$log"
+  if grep -q "loop.sh START" "$log"; then
+    echo "loop.sh ran on the wrong node" >&2
+    return 1
+  fi
 }
 
 @test "a bad EnvironmentFile fails with 78 and does not restart-loop" {
@@ -202,8 +221,8 @@ prop() { systemctl --user show "$1" -p "$2" --value; }
   systemctl --user reset-failed "$PINNED_UNIT" 2>/dev/null || true
   systemctl --user start "$PINNED_UNIT" || true
   wait_inactive "$PINNED_UNIT"
-  [ "$(prop "$PINNED_UNIT" ExecMainStatus)" = "78" ]
+  assert_prop "$PINNED_UNIT" ExecMainStatus 78
   # "failed", not "activating (auto-restart)": no restart is queued.
-  [ "$(prop "$PINNED_UNIT" ActiveState)" = "failed" ]
-  [ "$(prop "$PINNED_UNIT" NRestarts)" = "0" ]
+  assert_prop "$PINNED_UNIT" ActiveState failed
+  assert_prop "$PINNED_UNIT" NRestarts 0
 }

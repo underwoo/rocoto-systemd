@@ -106,9 +106,11 @@ It covers: `systemd-analyze verify` on the template; the EnvironmentFile
 resolving; a settled workflow reaching `Result=success` with `NRestarts=0`;
 `StandardOutput=append:` producing the log the docs point at; cgroup accounting
 producing a profile `summarize-mem.sh` can read; a finished workflow disabling
-its own boot autostart; a wrong-node start being *skipped*
-(`Result=exec-condition`, no restart queued); and a bad-config exit 78 failing
-*without* a restart loop.
+its own boot autostart; a wrong-node start being *skipped* (inactive, not
+failed, no restart queued, `loop.sh` never started); and a bad-config exit 78
+failing *without* a restart loop. The skip is asserted on unit state and the
+service log, not on `Result=exec-condition`: systemd unloads inactive units, so
+that `Result` is gone by the next `systemctl show`.
 
 That last pair is the highest-value test in the repo, and it has already paid
 for itself. It caught the original design -- the guard as an `ExecStartPre`
