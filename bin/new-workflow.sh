@@ -8,7 +8,7 @@
 #   ~/.config/rocoto-systemd/<instance>.scrontab    (paste into `scrontab -e`)
 #
 # Node isolation, if chosen, is enforced in every entry point:
-#   PIN_NODE= in the .env       -> node-guard.sh (ExecStartPre) + loop.sh
+#   PIN_NODE= in the .env       -> node-guard.sh (ExecCondition) + loop.sh
 #   #SCRON --nodelist=/PIN_NODE= -> watchdog.sh (if the scron path is used)
 
 set -u

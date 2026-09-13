@@ -52,8 +52,9 @@ in this, as that would make a cheap tier-2.5 possible.
 
 **systemd is the real dependency.** The unit file is a genuine piece of the
 program, and none of it can be stubbed: whether `%h` expands, whether
-`EnvironmentFile=` is read before `ExecStartPre` runs, whether
-`RestartPreventExitStatus=70 78` actually suppresses the restart,
+`EnvironmentFile=` is read before `ExecCondition` runs, whether a wrong-node
+skip really leaves no restart queued, whether `RestartPreventExitStatus=78`
+actually suppresses the restart,
 whether `StandardOutput=append:` is supported by the systemd on the target,
 whether `MemoryAccounting=yes` produces the cgroup numbers `summarize-mem.sh`
 reports. That is what tier 2 exists for, and it is the reason the devcontainer
@@ -73,7 +74,7 @@ assert on *what the script decided to do*, not on prose in the log.
 | `common_rocoto_settled.bats` | the settled/not-settled decision, including every "exit 1 on doubt" case: no cycles yet, empty output, `rocotostat` failure |
 | `common_linger.bats` | `linger_state`, `ensure_linger`'s enable-then-recheck, the remediation message, `wait_user_manager`'s give-up |
 | `common_module.bats` | `ROCOTO_BIN` vs `ROCOTO_MODULE` vs already-on-`PATH` precedence, and the failure messages |
-| `node_guard.bats` | `ExecStartPre` exits 0/70 |
+| `node_guard.bats` | the `ExecCondition` guard: exit 0 when allowed, 70 (a skip, never 255) on the wrong node |
 | `loop.bats` | config validation (exit 78), plus a full drive-loop pass against a stubbed rocoto: settled exit, `MAX_RUNTIME` exit, `IDLE_LIMIT` needing *consecutive* passes, the self-`disable` |
 | `watchdog.bats` | the whole decision matrix — start / leave alone / tear down — plus EnvironmentFile syncing |
 | `install.bats` | flattened layout, idempotency, and that uninstall keeps instance configs and logs |
@@ -84,8 +85,9 @@ assert on *what the script decided to do*, not on prose in the log.
 Two conventions worth keeping:
 
 * **Cross-checks over restatement.** `unit_file.bats` does not assert
-  "`RestartPreventExitStatus` is 70 78"; it asserts that the codes in the unit
-  file are the codes `node-guard.sh` and `loop.sh` actually exit with. Same for
+  "`RestartPreventExitStatus` is 78"; it asserts that the code in the unit file
+  is the code `loop.sh` actually exits with, and `node_guard.bats` that the
+  guard's wrong-node exit is one `ExecCondition` treats as a skip. Same for
   the env-file path, the log path, and the scrontab export list versus the
   variables `watchdog.sh` reads. These are the couplings nothing else notices.
 * **Answers as arrays, not here-documents.** In `new_workflow.bats` a blank
@@ -104,12 +106,16 @@ It covers: `systemd-analyze verify` on the template; the EnvironmentFile
 resolving; a settled workflow reaching `Result=success` with `NRestarts=0`;
 `StandardOutput=append:` producing the log the docs point at; cgroup accounting
 producing a profile `summarize-mem.sh` can read; a finished workflow disabling
-its own boot autostart; and both deliberate failures (`ExecStartPre` wrong-node
-70, bad-config 78) failing *without* a restart loop.
+its own boot autostart; a wrong-node start being *skipped*
+(`Result=exec-condition`, no restart queued); and a bad-config exit 78 failing
+*without* a restart loop.
 
-That last pair is the highest-value test in the repo. A regression there turns
-a clear one-line failure into a service that retries every 60 seconds until
-`StartLimitBurst` trips, on a shared login node.
+That last pair is the highest-value test in the repo, and it has already paid
+for itself. It caught the original design -- the guard as an `ExecStartPre`
+exiting 70 under `RestartPreventExitStatus=70` -- retrying every 60 seconds
+forever: systemd applies `RestartPreventExitStatus=` to the main process only.
+At `RestartSec=60` that is 5 starts per 300 s, under `StartLimitBurst=10`, so
+the start limit never trips either.
 
 ## Tier 3 — real iron (manual checklist)
 

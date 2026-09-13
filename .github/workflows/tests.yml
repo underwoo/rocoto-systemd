@@ -35,7 +35,7 @@ jobs:
 
   # Tier 2 -- the real thing.  A container booted with systemd as PID 1 and a
   # lingering unprivileged user, which is the only way to exercise the unit file
-  # itself: EnvironmentFile resolution, ExecStartPre gating,
+  # itself: EnvironmentFile resolution, the ExecCondition node guard,
   # RestartPreventExitStatus, StandardOutput=append: and cgroup accounting.
   systemd:
     name: systemd integration

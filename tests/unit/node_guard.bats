@@ -1,8 +1,8 @@
 #!/usr/bin/env bats
 #
-# node-guard.sh -- the ExecStartPre that stops `systemctl --user start` on the
-# wrong node.  Exit 70 matters: the unit lists it in RestartPreventExitStatus,
-# so a wrong-node start must not turn into a restart loop.
+# node-guard.sh -- the unit's ExecCondition, which skips a start on the wrong
+# node.  The exit code matters: systemd reads 1-254 as "skip" (inactive, never
+# restarted) but 255 as "failed", so a wrong node must stay inside 1-254.
 
 setup() {
   load ../helpers/common
@@ -40,7 +40,10 @@ EOF
   assert_contains "$output" "testwf.env"
 }
 
-@test "exit 70 is the code the unit refuses to restart on" {
-  # Guards the pairing between node-guard.sh and RestartPreventExitStatus.
-  grep -q 'RestartPreventExitStatus=.*\b70\b' "$REPO_ROOT/systemd/rocoto-workflow@.service"
+@test "the wrong-node exit is one ExecCondition treats as a skip" {
+  host_is gaea52
+  PIN_NODE=gaea51 run "$GUARD"
+  [ "$status" -ge 1 ]
+  [ "$status" -le 254 ]
+  grep -q '^ExecCondition=%h/rocoto-systemd/node-guard.sh' "$REPO_ROOT/systemd/rocoto-workflow@.service"
 }

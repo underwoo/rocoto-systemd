@@ -38,14 +38,21 @@ teardown() { teardown_sandbox; }
   grep -q '^Restart=on-failure' "$UNITFILE"
 }
 
-@test "both deliberate failure codes are exempt from restart" {
-  # 70 = node-guard.sh wrong node, 78 = loop.sh bad config.  Restarting either
-  # just repeats the same failure until StartLimitBurst trips.
-  line="$(grep '^RestartPreventExitStatus=' "$UNITFILE")"
-  assert_contains "$line" "70"
-  assert_contains "$line" "78"
-  grep -q 'exit 70' "$REPO_ROOT/libexec/node-guard.sh"
+@test "bad config (exit 78) is exempt from restart" {
+  # Restarting loop.sh on a config error just repeats the same failure.
+  grep -q '^RestartPreventExitStatus=.*\b78\b' "$UNITFILE"
   grep -q 'exit 78' "$REPO_ROOT/libexec/loop.sh"
+}
+
+@test "the node guard is an ExecCondition, not an ExecStartPre" {
+  # RestartPreventExitStatus= only covers the main process.  As an ExecStartPre,
+  # a wrong-node exit re-ran every RestartSec forever; as an ExecCondition any
+  # exit of 1-254 is a skip, which Restart=on-failure never restarts.
+  grep -q '^ExecCondition=%h/rocoto-systemd/node-guard.sh$' "$UNITFILE"
+  if grep -q '^ExecStartPre=' "$UNITFILE"; then
+    echo "unit still has an ExecStartPre" >&2
+    return 1
+  fi
 }
 
 @test "accounting is on, so the memory profile has cgroup numbers" {

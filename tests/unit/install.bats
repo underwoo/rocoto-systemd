@@ -36,8 +36,8 @@ install_now() { run "$REPO_ROOT/install.sh" </dev/null; }
 
 @test "the installed layout matches the paths the unit hardcodes" {
   install_now
-  # ExecStartPre / ExecStart use %h/rocoto-systemd/<script>
-  grep -q 'ExecStartPre=%h/rocoto-systemd/node-guard.sh' "$UNITDIR/rocoto-workflow@.service"
+  # ExecCondition / ExecStart use %h/rocoto-systemd/<script>
+  grep -q 'ExecCondition=%h/rocoto-systemd/node-guard.sh' "$UNITDIR/rocoto-workflow@.service"
   grep -q 'ExecStart=%h/rocoto-systemd/loop.sh' "$UNITDIR/rocoto-workflow@.service"
   [ -x "$DEST/node-guard.sh" ]
   [ -x "$DEST/loop.sh" ]

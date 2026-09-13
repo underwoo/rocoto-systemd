@@ -26,8 +26,9 @@ See [`docs/background.md`](docs/background.md) for the full reasoning.
 
 ## Requirements
 
-* `systemd` with per-user instances (`systemctl --user`), **v240+** for the
-  unit's `StandardOutput=append:` (older: see the unit's comment).
+* `systemd` with per-user instances (`systemctl --user`), **v243+** for the
+  unit's `ExecCondition=` node guard (v240+ for `StandardOutput=append:`; see
+  the unit's comments for older versions).
 * **User lingering** for any unattended use (boot autostart, or the scron
   watchdog):
 
@@ -129,7 +130,7 @@ workflow finishes.
 
 ```
 bin/         user-facing commands  (new-workflow.sh, watchdog.sh, summarize-mem.sh)
-libexec/     invoked by systemd    (loop.sh = ExecStart, node-guard.sh = ExecStartPre)
+libexec/     invoked by systemd    (loop.sh = ExecStart, node-guard.sh = ExecCondition)
 lib/         sourced helpers       (common.sh)
 systemd/     rocoto-workflow@.service
 examples/    instance.env.example, scrontab.example

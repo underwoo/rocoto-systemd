@@ -4,8 +4,8 @@
 #
 # This is the only tier that can prove the things a stub cannot:
 #   * EnvironmentFile=%h/.config/rocoto-systemd/%i.env actually resolves
-#   * ExecStartPre failure blocks ExecStart
-#   * RestartPreventExitStatus=70 78 really does suppress the restart
+#   * an ExecCondition skip blocks ExecStart without failing or restarting
+#   * RestartPreventExitStatus=78 really does suppress the restart
 #   * StandardOutput=append: works (needs systemd >= 240)
 #   * MemoryAccounting=yes produces the numbers summarize-mem.sh reports
 #   * loop.sh's self-`disable` clears the boot autostart
@@ -178,16 +178,18 @@ prop() { systemctl --user show "$1" -p "$2" --value; }
   [ "$(systemctl --user is-enabled "$UNIT" 2>/dev/null)" != "enabled" ]
 }
 
-@test "ExecStartPre blocks a start on the wrong node and does not restart-loop" {
+@test "a wrong-node start is skipped: inactive, not failed, no restart queued" {
   make_stub_rocoto Active
   write_env "$PINNED_INSTANCE" "PIN_NODE=definitely-not-this-host"
   install_and_reload
   systemctl --user reset-failed "$PINNED_UNIT" 2>/dev/null || true
-  run systemctl --user start "$PINNED_UNIT"
-  [ "$status" -ne 0 ]
-  [ "$(prop "$PINNED_UNIT" ActiveState)" = "failed" ]
-  # RestartPreventExitStatus=70 must stop systemd retrying every RestartSec.
-  sleep 3
+  systemctl --user start "$PINNED_UNIT" || true
+  wait_inactive "$PINNED_UNIT"
+  [ "$(prop "$PINNED_UNIT" Result)" = "exec-condition" ]
+  [ "$(prop "$PINNED_UNIT" ActiveState)" = "inactive" ]
+  # A queued restart shows as SubState=auto-restart for all of RestartSec;
+  # "dead" means none is coming.
+  [ "$(prop "$PINNED_UNIT" SubState)" = "dead" ]
   [ "$(prop "$PINNED_UNIT" NRestarts)" = "0" ]
   grep -q "refusing to start" "$HOME/rocoto-systemd/logs/${PINNED_INSTANCE}.service.log"
 }
@@ -201,6 +203,7 @@ prop() { systemctl --user show "$1" -p "$2" --value; }
   systemctl --user start "$PINNED_UNIT" || true
   wait_inactive "$PINNED_UNIT"
   [ "$(prop "$PINNED_UNIT" ExecMainStatus)" = "78" ]
-  sleep 3
+  # "failed", not "activating (auto-restart)": no restart is queued.
+  [ "$(prop "$PINNED_UNIT" ActiveState)" = "failed" ]
   [ "$(prop "$PINNED_UNIT" NRestarts)" = "0" ]
 }
