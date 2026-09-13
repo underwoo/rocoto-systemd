@@ -1,0 +1,38 @@
+{
+  "name": "rocoto-systemd",
+  "build": { "dockerfile": "Dockerfile" },
+
+  // systemd must be PID 1, so do not let the devcontainer replace the
+  // entrypoint with a sleep loop.
+  "overrideCommand": false,
+  "privileged": true,
+  "runArgs": [
+    "--cgroupns=host",
+    "--tmpfs=/run",
+    "--tmpfs=/run/lock"
+  ],
+
+  "remoteUser": "dev",
+  "containerUser": "dev",
+  "workspaceFolder": "/workspaces/rocoto-systemd",
+
+  "containerEnv": {
+    "ROCOTO_SYSTEMD_LIVE_TESTS": "1",
+    "XDG_RUNTIME_DIR": "/run/user/1001"
+  },
+
+  "postCreateCommand": "pre-commit install || true",
+
+  "customizations": {
+    "vscode": {
+      "extensions": [
+        "timonwong.shellcheck",
+        "foxundermoon.shell-format",
+        "jetmartin.bats"
+      ],
+      "settings": {
+        "terminal.integrated.defaultProfile.linux": "bash"
+      }
+    }
+  }
+}

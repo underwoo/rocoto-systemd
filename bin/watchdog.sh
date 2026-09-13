@@ -67,7 +67,9 @@ mkdir -p "$ENVDIR"
   for k in PIN_NODE ROCOTO_MODULE ROCOTO_MODULEPATH ROCOTO_BIN VERBOSITY INTERVAL \
            IDLE_LIMIT MAX_RUNTIME MEM_SAMPLE_INTERVAL SERVICE_LOG MEM_LOG; do
     eval "kv=\${$k:-}"
-    [ -n "$kv" ] && echo "$k=$kv"
+    # `if`, not `[ ] &&`: this is the last command in the group, and a false
+    # test would make the group exit non-zero and skip the `mv` below.
+    if [ -n "$kv" ]; then echo "$k=$kv"; fi
   done
 } > "${ENVFILE}.tmp" && mv "${ENVFILE}.tmp" "$ENVFILE"
 

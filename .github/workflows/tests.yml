@@ -1,0 +1,63 @@
+name: tests
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  # Tier 1 -- hermetic.  Stubs stand in for rocoto, systemd and Slurm, so this
+  # runs anywhere, including macOS (where several contributors develop).
+  unit:
+    name: unit (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Install bats
+        run: |
+          if [ "$RUNNER_OS" = "macOS" ]; then
+            brew install bats-core
+          else
+            sudo apt-get update && sudo apt-get install -y bats
+          fi
+
+      - name: Run the hermetic suite
+        run: tests/run.sh
+
+  # Tier 2 -- the real thing.  A container booted with systemd as PID 1 and a
+  # lingering unprivileged user, which is the only way to exercise the unit file
+  # itself: EnvironmentFile resolution, ExecStartPre gating,
+  # RestartPreventExitStatus, StandardOutput=append: and cgroup accounting.
+  systemd:
+    name: systemd integration
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: docker/setup-buildx-action@v3
+
+      - name: Build the test container
+        uses: docker/build-push-action@v6
+        with:
+          context: .devcontainer
+          tags: rocoto-systemd-test:ci
+          load: true
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Run the full suite under a live user manager
+        run: .devcontainer/test-in-container.sh --image rocoto-systemd-test:ci --no-build
+
+      - name: Unit file sanity
+        run: |
+          docker run --rm rocoto-systemd-test:ci \
+            systemd-analyze --version | head -1

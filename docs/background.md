@@ -59,3 +59,33 @@ the service if the entire user manager dies without a reboot
 The whole footprint (driver + 3 daemons + transient `squeue`/`sacct`) is low
 hundreds of MB for a typical workflow, spiking briefly once per pass. `loop.sh`
 records it every pass; see [`memory-profiling.md`](memory-profiling.md).
+
+## Shell environment
+
+The scripts are bash, but none of them reads `~/.bashrc` or `~/.bash_profile`:
+a script run through its `#!` line is a non-interactive, non-login shell, which
+reads no startup file except `$BASH_ENV` (if set). What a script *does* see is
+the environment it inherits, and that depends on the entry point:
+
+* **`loop.sh`, `node-guard.sh` (systemd)** — the user manager's environment
+  plus the instance `.env` file. Your shell's variables are **not** included
+  unless something imports them into the manager: a `~/.bashrc` that runs
+  `systemctl --user import-environment` or
+  `dbus-update-activation-environment --systemd`, or files in
+  `~/.config/environment.d/`.
+* **`watchdog.sh` (scron)** — built by Slurm. `sbatch` documents that an
+  explicit `--export=` list makes it load your *login* environment (roughly
+  `su - $USER -c env`, which does read `~/.bash_profile`); the `scrontab` docs
+  don't say whether that applies to scron jobs, so assume it may. Only the
+  variables `watchdog.sh` lists are copied into the `.env` file the service
+  reads.
+* **`install.sh`, `new-workflow.sh`** — your interactive shell's exported
+  environment.
+
+Rewriting the scripts in POSIX `sh` would not change any of this; every shell
+inherits its environment the same way.
+
+One consequence: `load_rocoto_module` uses any `rocotorun` already on `PATH`
+before it consults `ROCOTO_BIN` / `ROCOTO_MODULE`. If your login or interactive
+environment puts a Rocoto on `PATH`, the watchdog and manual runs may use that
+one rather than the version named in the `.env` file.
