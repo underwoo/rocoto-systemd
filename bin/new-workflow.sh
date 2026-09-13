@@ -13,6 +13,10 @@
 
 set -u
 
+# cron, scron and `docker exec` can start a script with USER unset; under
+# `set -u` the first bare $USER would abort it.
+USER="${USER:-$(id -un)}"
+
 DEST="${HOME}/rocoto-systemd"
 ENVDIR="${HOME}/.config/rocoto-systemd"
 mkdir -p "$ENVDIR"

@@ -131,6 +131,17 @@ EOF
   assert_contains "$(svclog)" "lingering is not enabled"
 }
 
+@test "the lingering warning survives an unset USER" {
+  stub loginctl <<'EOF'
+echo "Linger=no"
+EOF
+  rocoto_is Done
+  stub_exit systemctl 1
+  run env -u USER "$LOOP"
+  assert_status 0
+  assert_contains "$(svclog)" "loginctl enable-linger $(id -un)"
+}
+
 # ------------------------------------------------------------------ loop ----
 
 @test "settled workflow: one pass, clean exit, rocotorun actually called" {

@@ -85,6 +85,12 @@ EOF
   assert_contains "$output" "Linger=unknown"
 }
 
+@test "works when USER is unset (cron, scron, docker exec)" {
+  run env -u USER "$REPO_ROOT/install.sh" </dev/null
+  assert_status 0
+  assert_stub_called "loginctl show-user $(id -un) -p Linger"
+}
+
 @test "uninstall removes the scripts and the unit" {
   install_now
   run "$REPO_ROOT/install.sh" --uninstall

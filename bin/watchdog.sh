@@ -18,6 +18,10 @@
 
 set -u
 
+# cron, scron and `docker exec` can start a script with USER unset; under
+# `set -u` the first bare $USER would abort it.
+USER="${USER:-$(id -un)}"
+
 SELF_DIR="$(cd "$(dirname "$0")" && pwd)"
 # shellcheck disable=SC1091
 . "${SELF_DIR}/common.sh" 2>/dev/null || . "${SELF_DIR}/../lib/common.sh"

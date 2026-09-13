@@ -100,6 +100,16 @@ EOF
   assert_contains "$output" "not responsive"
 }
 
+@test "the not-responsive hint survives an unset USER" {
+  stub sleep <<'EOF'
+exit 0
+EOF
+  stub_exit systemctl 1
+  run env -u USER "$WATCHDOG"
+  assert_status 1
+  assert_contains "$output" "loginctl user-status $(id -un)"
+}
+
 # ------------------------------------------------------------- env file ----
 
 @test "writes the EnvironmentFile from the exported variables" {

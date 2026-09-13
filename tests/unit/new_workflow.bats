@@ -58,6 +58,13 @@ answer_with() {
   [ ! -e "$ENVDIR/work.scrontab" ]
 }
 
+@test "the next-steps hint survives an unset USER" {
+  # WF, then accept every default (11 prompts), no scron.
+  run env -u USER "$NEWWF" <<< "$(printf '%s\n' "$WF" "" "" "" "" "" "" "" "" "" "" "")"
+  assert_status 0
+  assert_contains "$output" "loginctl enable-linger $(id -un)"
+}
+
 @test "explicit values are written through verbatim" {
   answer_with \
     "$WF" "$WD" "$WD/custom.db" "myinst" \
