@@ -20,16 +20,21 @@ StartLimitBurst=10
 Type=simple
 EnvironmentFile=%h/.config/rocoto-systemd/%i.env
 WorkingDirectory=%h
-# Refuse to start on the wrong node when the instance is pinned (PIN_NODE in the env file):
-ExecStartPre=%h/rocoto-systemd/node-guard.sh
+# Skip the start on the wrong node when the instance is pinned (PIN_NODE in the
+# env file).  ExecCondition (systemd >= 243), not ExecStartPre: a guard exit of
+# 1-254 leaves the unit inactive -- not failed, never restarted -- which is what
+# the other nodes sharing this $HOME should do at boot.  Older systemd ignores
+# the line with a warning; loop.sh's own pin check still refuses (exit 78).
+ExecCondition=%h/rocoto-systemd/node-guard.sh
 ExecStart=%h/rocoto-systemd/loop.sh
 
 # Clean exit (workflow settled) => stays stopped.  Only a crash restarts it.
 Restart=on-failure
 RestartSec=60
-# node-guard.sh exits 70 on the wrong node / loop.sh exits 78 on bad config:
-# do not retry-loop those.
-RestartPreventExitStatus=70 78
+# loop.sh exits 78 on bad config (or, as the backstop, a wrong node): do not
+# retry-loop that.  This only covers the main process -- it has no effect on
+# ExecCondition/ExecStartPre, which is why the node guard is an ExecCondition.
+RestartPreventExitStatus=78
 
 # --- the service's own append-only log -------------------------------------
 # StandardOutput=append: needs systemd >= v240.  Check `systemctl --version`.

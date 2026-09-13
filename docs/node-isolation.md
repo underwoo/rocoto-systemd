@@ -20,19 +20,29 @@ It is then enforced in three places:
 
 | Where | Mechanism | On the wrong node |
 |---|---|---|
-| systemd service | `ExecStartPre=.../node-guard.sh` reads `PIN_NODE` from the env file | unit fails to start with a clear message; `RestartPreventExitStatus=70` stops it retry-looping |
-| `loop.sh` | same check at startup | exits 78 with a message naming the correct node |
+| systemd service | `ExecCondition=.../node-guard.sh` reads `PIN_NODE` from the env file | start is skipped: the unit stays inactive (not failed) and is never restarted; the reason goes to the service log |
+| `loop.sh` | same check at startup (backstop) | exits 78 with a message naming the correct node; 78 is in `RestartPreventExitStatus` |
 | `watchdog.sh` (scron only) | same check | logs the error, exits 71, does **not** start a second copy |
 | `#SCRON --nodelist=<node>` | Slurm | scron always runs the watchdog on that node |
 
 So a user who runs `systemctl --user start rocoto-workflow@<instance>` from the
-wrong login node sees:
+wrong login node gets no error from `systemctl` itself: the start is skipped.
+`systemctl --user status rocoto-workflow@<instance>` shows the skip, and the
+service log (`~/rocoto-systemd/logs/<instance>.service.log`) says why:
 
 ```
+This workflow instance is PINNED to node '<node>', but this is '<this-node>'.
 node-guard: refusing to start '<instance>' here.
 node-guard: pinned to '<node>' -- start the service on that node,
 node-guard: or clear PIN_NODE in ~/.config/rocoto-systemd/<instance>.env
 ```
+
+Skipping rather than failing is deliberate. `systemctl --user enable` links the
+unit under `~/.config/systemd/user/`, so on a shared `$HOME` **every** node
+where you have lingering tries to start it at boot. The nodes it is not pinned
+to should quietly stand down, not show a failed unit or retry every minute.
+(`RestartPreventExitStatus=` cannot do this: systemd applies it only to the main
+process, never to `ExecStartPre=` or `ExecCondition=`.)
 
 ## Choosing / changing the node
 

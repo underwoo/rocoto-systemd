@@ -35,6 +35,15 @@ Stop for good before completion:
 systemctl --user disable --now rocoto-workflow@<instance>
 ```
 
+## On a shared `$HOME`, pin the instance
+
+The `enable` symlink lives in `~/.config/systemd/user/`, but lingering is set
+per node. Where `$HOME` is shared (as on most HPCs), every node on which you
+have enabled lingering sees the same enabled unit and starts it at boot. Pin the
+instance (`PIN_NODE`; see [`node-isolation.md`](node-isolation.md)) so only one
+node runs it: on the others the unit's `ExecCondition=` guard skips the start,
+and the unit stays inactive without retrying.
+
 ## What this does NOT cover
 
 * If the **entire user manager** dies mid-run without a reboot (rare), nothing

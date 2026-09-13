@@ -26,8 +26,9 @@ See [`docs/background.md`](docs/background.md) for the full reasoning.
 
 ## Requirements
 
-* `systemd` with per-user instances (`systemctl --user`), **v240+** for the
-  unit's `StandardOutput=append:` (older: see the unit's comment).
+* `systemd` with per-user instances (`systemctl --user`), **v243+** for the
+  unit's `ExecCondition=` node guard (v240+ for `StandardOutput=append:`; see
+  the unit's comments for older versions).
 * **User lingering** for any unattended use (boot autostart, or the scron
   watchdog):
 
@@ -112,7 +113,7 @@ workflow finishes.
 ## Docs
 
 * [`docs/background.md`](docs/background.md) — why `systemd --user`, the cgroup
-  and cross-node reasoning.
+  and cross-node reasoning, and what environment each script inherits.
 * [`docs/reboot-autostart.md`](docs/reboot-autostart.md) — how `enable` + linger
   gives boot autostart with no scheduler.
 * [`docs/node-isolation.md`](docs/node-isolation.md) — pinning an instance to one
@@ -120,6 +121,8 @@ workflow finishes.
 * [`docs/memory-profiling.md`](docs/memory-profiling.md) — reading `*.mem.log`,
   expected footprint, resource caps.
 * [`docs/scron-watchdog.md`](docs/scron-watchdog.md) — the optional scron add-on.
+* [`docs/testing.md`](docs/testing.md) — the three test tiers, what each one can
+  and cannot prove, and the manual checklist for the rest.
 
 ---
 
@@ -127,10 +130,54 @@ workflow finishes.
 
 ```
 bin/         user-facing commands  (new-workflow.sh, watchdog.sh, summarize-mem.sh)
-libexec/     invoked by systemd    (loop.sh = ExecStart, node-guard.sh = ExecStartPre)
+libexec/     invoked by systemd    (loop.sh = ExecStart, node-guard.sh = ExecCondition)
 lib/         sourced helpers       (common.sh)
 systemd/     rocoto-workflow@.service
 examples/    instance.env.example, scrontab.example
 docs/        the above
+tests/       bats suite (run.sh, unit/ = hermetic, systemd/ = needs a user manager)
+.devcontainer/  Ubuntu + systemd-as-PID-1 image for developing on macOS
+.github/     pre-commit and test workflows
 install.sh   flattens bin+libexec+lib into ~/rocoto-systemd/ and installs the unit
 ```
+
+---
+
+## Development
+
+```sh
+pip install pre-commit          # or: brew install pre-commit
+pre-commit install              # lint + hygiene on every `git commit`
+pre-commit run --all-files      # check the whole tree once
+tests/run.sh                    # the hermetic test suite (needs only bash)
+```
+
+`SKIP=shellcheck git commit ...` skips one hook; `git commit --no-verify` skips
+all of them.
+
+The suite is tiered by what infrastructure it needs — see
+[`docs/testing.md`](docs/testing.md):
+
+* **hermetic** (`tests/unit/`) — stubs stand in for Rocoto, systemd and Slurm,
+  so it runs anywhere including macOS. This is what `tests/run.sh` runs.
+* **systemd integration** (`tests/systemd/`) — needs a real `systemctl --user`,
+  and is the only tier that can test the unit file itself. Opt in with
+  `ROCOTO_SYSTEMD_LIVE_TESTS=1`.
+* **real iron** — a manual checklist for the Slurm and reboot behaviour that
+  cannot be faked.
+
+### Devcontainer
+
+`.devcontainer/` is an Ubuntu image with **systemd running as PID 1** and a
+lingering unprivileged user, which is the one thing a macOS workstation cannot
+provide. Open the repo in a devcontainer and `systemctl --user` behaves the way
+it does on a login node.
+
+To run both automated tiers from macOS without opening an editor:
+
+```sh
+.devcontainer/test-in-container.sh
+```
+
+CI runs the hermetic tier on Linux and macOS, and the systemd tier inside that
+same container image.

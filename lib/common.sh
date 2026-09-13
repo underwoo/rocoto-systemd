@@ -90,8 +90,7 @@ EOF
 #   (the per-user manager can take a moment to come up after enable-linger)
 # ----------------------------------------------------------------------
 wait_user_manager() {
-  local i
-  for i in $(seq 1 15); do
+  for _ in $(seq 1 15); do
     systemctl --user show --property=Version >/dev/null 2>&1 && return 0
     sleep 1
   done

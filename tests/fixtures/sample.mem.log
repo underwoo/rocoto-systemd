@@ -1,0 +1,8 @@
+# ts	tag	kind	pid	threads	rss_kb	pss_kb	comm	args|cgroupinfo
+2021-01-01T00:00:00	iter1+0s	PROC	1001	8	102400	51200	rocotorun	/usr/bin/ruby /apps/rocoto/bin/rocotorun
+2021-01-01T00:00:00	iter1+0s	PROC	1002	4	204800	102400	ruby	/usr/bin/ruby /apps/rocoto/bin/rocotobqserver
+2021-01-01T00:00:00	iter1+0s	TOTAL	-	-	307200	153600	cgroup_current=209715200	cgroup_peak=419430400
+2021-01-01T00:00:03	iter1+3s	PROC	1001	2	51200	25600	rocotorun	/usr/bin/ruby /apps/rocoto/bin/rocotorun
+2021-01-01T00:00:03	iter1+3s	PROC	1002	16	409600	204800	ruby	/usr/bin/ruby /apps/rocoto/bin/rocotobqserver
+2021-01-01T00:00:03	iter1+3s	TOTAL	-	-	460800	230400	cgroup_current=314572800	cgroup_peak=314572800
+2021-01-01T00:00:06	iter1	SERVICE	MemoryCurrent=314572800 MemoryPeak=524288000 TasksCurrent=24

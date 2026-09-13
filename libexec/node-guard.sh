@@ -1,12 +1,14 @@
 #!/usr/bin/env bash
 #
-# ExecStartPre guard for rocoto-workflow@<instance>.service.
+# ExecCondition guard for rocoto-workflow@<instance>.service.
 #
-# The EnvironmentFile is already loaded by the time ExecStartPre runs, so PIN_NODE
-# (if any) is in our environment.  If it names a different node than this one,
-# fail the unit with a clear message so a user who runs
+# The EnvironmentFile is already loaded by the time ExecCondition runs, so
+# PIN_NODE (if any) is in our environment.  If it names a different node than
+# this one, exit 70: systemd treats any ExecCondition exit of 1-254 as "skip"
+# -- the unit stays inactive and is never restarted -- and the message below
+# lands in the service log, so whoever ran
 #     systemctl --user start rocoto-workflow@<instance>
-# on the wrong node gets told why instead of a silent second copy.
+# on the wrong node can see why.  Never exit 255: that marks the unit failed.
 
 set -u
 SELF_DIR="$(cd "$(dirname "$0")" && pwd)"

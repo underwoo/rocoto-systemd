@@ -8,10 +8,14 @@
 #   ~/.config/rocoto-systemd/<instance>.scrontab    (paste into `scrontab -e`)
 #
 # Node isolation, if chosen, is enforced in every entry point:
-#   PIN_NODE= in the .env       -> node-guard.sh (ExecStartPre) + loop.sh
+#   PIN_NODE= in the .env       -> node-guard.sh (ExecCondition) + loop.sh
 #   #SCRON --nodelist=/PIN_NODE= -> watchdog.sh (if the scron path is used)
 
 set -u
+
+# cron, scron and `docker exec` can start a script with USER unset; under
+# `set -u` the first bare $USER would abort it.
+USER="${USER:-$(id -un)}"
 
 DEST="${HOME}/rocoto-systemd"
 ENVDIR="${HOME}/.config/rocoto-systemd"
@@ -62,7 +66,7 @@ if yesno "Pin this instance to a single node?" N; then
   if [ -n "$PIN_PARTITION" ] && command -v sinfo >/dev/null 2>&1; then
     nodes="$(sinfo -h -p "$PIN_PARTITION" -N -o '%N' 2>/dev/null | sort -u | paste -sd' ' -)"
     [ -n "$nodes" ] && echo "  nodes in '$PIN_PARTITION': $nodes"
-    def_node="$(printf '%s\n' $nodes | head -1)"
+    def_node="${nodes%% *}"
   fi
   ask PIN_NODE "Node to pin to" "${def_node:-}"
 fi
@@ -145,9 +149,13 @@ Watch:
     tail -f ${DEST}/logs/${INSTANCE}.mem.log
 EOF
 
-[ -n "$CRONTAB_FILE" ] && cat <<EOF
+# `if`, not `[ ] &&`: this is the last command in the script, and a false test
+# would make a perfectly successful registration exit 1.
+if [ -n "$CRONTAB_FILE" ]; then
+  cat <<EOF
 
 Optional scron watchdog:
     scrontab -e        # paste the contents of $CRONTAB_FILE
     scrontab -l
 EOF
+fi

@@ -1,0 +1,27 @@
+# Run `pre-commit install` once after cloning; `pre-commit run -a` to check everything.
+repos:
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v6.0.0
+    hooks:
+      - id: trailing-whitespace
+      - id: end-of-file-fixer
+      - id: mixed-line-ending
+        args: [--fix=lf]
+      - id: check-merge-conflict
+      - id: check-case-conflict
+      - id: check-yaml
+      - id: check-executables-have-shebangs
+      - id: check-shebang-scripts-are-executable
+      - id: check-added-large-files
+
+  # Uses a pip-packaged shellcheck binary (no Docker required).
+  - repo: https://github.com/shellcheck-py/shellcheck-py
+    rev: v0.11.0.1
+    hooks:
+      - id: shellcheck
+        args: [--external-sources]
+        # bats files are preprocessed before bash sees them: `$status`/`$output`
+        # look undefined, each @test body looks like a lost subshell, and the
+        # `@test` syntax itself is not shell.  tests/run.sh and the .bash
+        # helpers are still checked.
+        exclude: '\.bats$'
