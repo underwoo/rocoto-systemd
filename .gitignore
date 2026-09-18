@@ -1,1 +1,13 @@
 tests/.bats/
+
+# It is possible users will have this checkout double as install.sh's own
+# install destination (DEST resolves to $HOME/rocoto-systemd). Ignore the
+# flattened bin/+libexec/+lib/ copies and the runtime logs dir it creates
+# here -- the tracked sources are bin/ libexec/ lib/.
+/common.sh
+/loop.sh
+/new-workflow.sh
+/node-guard.sh
+/summarize-mem.sh
+/watchdog.sh
+/logs/
