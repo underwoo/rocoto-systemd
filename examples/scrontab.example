@@ -11,8 +11,15 @@
 #     `scancel` on itself.  Slurm then prepends "#DISABLED: " to the lines
 #     below and no further cycle runs -- a clean, automatic shutdown.
 #
-# Everything the run needs is passed through --export (comma-separated, NO spaces).
-# INSTANCE is optional (defaults to the basename of WD).
+# No '#SCRON --export=' here: on at least one Slurm/scrontab setup it was
+# confirmed to NOT reach watchdog.sh's process environment at all on
+# scrontab-triggered (re)executions -- every exported var missing, every
+# tick, from install onward. Instead, watchdog.sh reads WF/DB/WD/PIN_NODE/the
+# ROCOTO_* vars/the tunables from ~/.config/rocoto-systemd/<instance>.env,
+# which new-workflow.sh / setup_instance.sh write BEFORE this job ever ticks.
+# The only thing that has to reach the job itself is INSTANCE, passed below
+# as a plain literal argument (not a variable -- nothing for scrontab to
+# substitute or drop).
 # PIN_NODE + --nodelist are present only when the instance is node-isolated.
 
 #SCRON --partition=cron_c6
@@ -22,7 +29,6 @@
 #SCRON --job-name=rocoto_wd_rrfsdet
 #SCRON --dependency=singleton
 #SCRON --nodelist=gaea61
-#SCRON --export=WF=/gpfs/f6/arfs-gsl/world-shared/gge/rrfs2/regressionTests/conus12km/exp/rrfsdet/rrfs.xml,DB=/gpfs/f6/arfs-gsl/world-shared/gge/rrfs2/regressionTests/conus12km/exp/rrfsdet/rrfs.db,WD=/gpfs/f6/arfs-gsl/world-shared/gge/rrfs2/regressionTests/conus12km/exp/rrfsdet,INSTANCE=rrfsdet,PIN_NODE=gaea61,ROCOTO_MODULEPATH=/gpfs/f6/arfs-gsl/world-shared/gge/rocoto/modulefiles,ROCOTO_MODULE=rocoto/1.3.7g,VERBOSITY=10
 #SCRON --output=/gpfs/f6/arfs-gsl/world-shared/gge/rrfs2/regressionTests/conus12km/exp/rrfsdet/logs/watchdog_rrfsdet.out
 
-*/5 * * * * REPLACE_WITH_HOME/rocoto-systemd/watchdog.sh
+@hourly REPLACE_WITH_HOME/rocoto-systemd/watchdog.sh rrfsdet

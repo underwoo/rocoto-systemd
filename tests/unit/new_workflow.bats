@@ -133,7 +133,11 @@ EOF
   assert_contains "$(cat "$ENVDIR/manual.env")" "PIN_NODE=gaea77"
 }
 
-@test "scrontab carries the full export list the watchdog needs" {
+@test "scrontab carries the SCRON directives, and the env file carries WF/INSTANCE/ROCOTO_MODULE" {
+  # No '#SCRON --export=' -- it doesn't reliably reach watchdog.sh's process
+  # environment on scrontab-triggered runs (see docs/scron-watchdog.md), so
+  # watchdog.sh reads WF/DB/WD/etc from the .env file instead; only INSTANCE
+  # needs to reach the job, as a literal argument on the crontab line.
   answer_with \
     "$WF" "" "" "scr" \
     "" "rocoto/1.3.7" "" \
@@ -149,15 +153,18 @@ EOF
   assert_contains "$body" "#SCRON --mem=2G"
   assert_contains "$body" "#SCRON --job-name=rocoto_wd_scr"
   assert_contains "$body" "#SCRON --dependency=singleton"
-  assert_contains "$body" "WF=$WF"
-  assert_contains "$body" "INSTANCE=scr"
-  assert_contains "$body" "ROCOTO_MODULE=rocoto/1.3.7"
-  assert_contains "$body" "*/5 * * * * $HOME/rocoto-systemd/watchdog.sh"
+  refute_contains "$body" "--export="
+  assert_contains "$body" "*/5 * * * * $HOME/rocoto-systemd/watchdog.sh scr"
+
+  env_body="$(cat "$ENVDIR/scr.env")"
+  assert_contains "$env_body" "WF=$WF"
+  assert_contains "$env_body" "INSTANCE=scr"
+  assert_contains "$env_body" "ROCOTO_MODULE=rocoto/1.3.7"
 }
 
-@test "a pinned instance gets a matching --nodelist in the scrontab" {
-  # Without this the scron job can land on another node, where node_pin_ok
-  # refuses to start the service -- silently, every five minutes.
+@test "a pinned instance gets a matching --nodelist in the scrontab and PIN_NODE in the env file" {
+  # Without --nodelist the scron job can land on another node, where
+  # node_pin_ok refuses to start the service -- silently, every tick.
   answer_with \
     "$WF" "" "" "both" \
     "" "" "" \
@@ -167,20 +174,20 @@ EOF
   assert_status 0
   body="$(cat "$ENVDIR/both.scrontab")"
   assert_contains "$body" "#SCRON --nodelist=gaea51"
-  assert_contains "$body" "PIN_NODE=gaea51"
+  assert_contains "$(cat "$ENVDIR/both.env")" "PIN_NODE=gaea51"
 }
 
-@test "every variable exported by the scrontab is one watchdog.sh reads" {
+@test "every variable written to the env file is one watchdog.sh reads" {
   answer_with \
     "$WF" "" "" "exp" \
     "" "" "" \
     "n" "" "" "" \
     "y" "cron_c6" "" "*/5 * * * *" "" ""
   assert_status 0
-  exports="$(sed -n 's/^#SCRON --export=//p' "$ENVDIR/exp.scrontab" | tr ',' '\n' | cut -d= -f1)"
-  [ -n "$exports" ]
-  for v in $exports; do
+  vars="$(sed -n 's/^\([A-Z_][A-Z_]*\)=.*/\1/p' "$ENVDIR/exp.env")"
+  [ -n "$vars" ]
+  for v in $vars; do
     grep -q "[^A-Z_]$v[^A-Z_]" "$REPO_ROOT/bin/watchdog.sh" \
-      || { echo "scrontab exports $v but watchdog.sh never reads it" >&2; return 1; }
+      || { echo "env file writes $v but watchdog.sh never reads it" >&2; return 1; }
   done
 }

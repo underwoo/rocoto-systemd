@@ -104,19 +104,19 @@ if yesno "Also generate a scron watchdog entry (restart if the user manager dies
   echo "--- scron watchdog job ---"
   ask PARTITION "scron partition" "${PIN_PARTITION:-cron_c6}"
   ask ACCOUNT   "account"          "${SLURM_ACCOUNT:-}"
-  ask CRONEXPR  "cron schedule"    "*/5 * * * *"
+  ask CRONEXPR  "cron schedule"    "@hourly"
   ask WD_MEM    "watchdog --mem"   "2G"
   ask WD_TIME   "watchdog --time"  "00:03:00"
 
-  EXPORT="WF=$WF,DB=$DB,WD=$WD,INSTANCE=$INSTANCE"
-  [ -n "$PIN_NODE" ]          && EXPORT="$EXPORT,PIN_NODE=$PIN_NODE"
-  [ -n "$ROCOTO_MODULEPATH" ] && EXPORT="$EXPORT,ROCOTO_MODULEPATH=$ROCOTO_MODULEPATH"
-  [ -n "$ROCOTO_MODULE" ]     && EXPORT="$EXPORT,ROCOTO_MODULE=$ROCOTO_MODULE"
-  [ -n "$ROCOTO_BIN" ]        && EXPORT="$EXPORT,ROCOTO_BIN=$ROCOTO_BIN"
-  EXPORT="$EXPORT,VERBOSITY=$VERBOSITY,INTERVAL=$INTERVAL,MAX_RUNTIME=$MAX_RUNTIME"
-
   CRONTAB_FILE="${ENVDIR}/${INSTANCE}.scrontab"
   {
+    # No '#SCRON --export=' here: on at least one Slurm/scrontab setup it was
+    # observed to NOT reach watchdog.sh's process environment at all on
+    # scrontab-triggered (re)runs (every var missing, every tick, from
+    # install onward -- see docs/scron-watchdog.md). watchdog.sh instead reads
+    # WF/DB/WD/etc from the <instance>.env file written above, and only
+    # INSTANCE needs to reach the job at all, which the literal argument below
+    # does unconditionally (nothing for scrontab to substitute or drop).
     echo "#SCRON --partition=$PARTITION"
     [ -n "$ACCOUNT" ] && echo "#SCRON --account=$ACCOUNT"
     echo "#SCRON --time=$WD_TIME"
@@ -124,10 +124,9 @@ if yesno "Also generate a scron watchdog entry (restart if the user manager dies
     echo "#SCRON --job-name=rocoto_wd_${INSTANCE}"
     echo "#SCRON --dependency=singleton"
     [ -n "$PIN_NODE" ] && echo "#SCRON --nodelist=$PIN_NODE"
-    echo "#SCRON --export=$EXPORT"
     echo "#SCRON --output=${WD}/logs/watchdog_${INSTANCE}.out"
     echo
-    echo "$CRONEXPR ${DEST}/watchdog.sh"
+    echo "$CRONEXPR ${DEST}/watchdog.sh $INSTANCE"
   } > "$CRONTAB_FILE"
   echo "wrote $CRONTAB_FILE"
 fi

@@ -2,7 +2,8 @@
 #
 # watchdog.sh -- invoked by scrontab every few minutes.
 #
-#   * (re)writes ~/.config/rocoto-systemd/<instance>.env from the exported vars
+#   * (re)writes ~/.config/rocoto-systemd/<instance>.env from whatever this
+#     tick's environment/persisted config resolves to
 #   * starts rocoto-workflow@<instance>.service if it is not running and the
 #     workflow is not yet settled
 #   * once the workflow has NO Active cycles:
@@ -10,11 +11,28 @@
 #       - `scancel $SLURM_JOB_ID` on itself.  Slurm responds by prepending
 #         "#DISABLED: " to this job's lines in the scrontab, so no future cycle runs.
 #
-# Configuration comes entirely from the scrontab `#SCRON --export=` list:
-#   WF, DB, WD                (required)
-#   INSTANCE                  (optional; default basename of WD)
-#   ROCOTO_MODULE, ROCOTO_MODULEPATH, ROCOTO_BIN, VERBOSITY, INTERVAL,
-#   IDLE_LIMIT, MAX_RUNTIME, MEM_SAMPLE_INTERVAL   (optional; passed through to the unit)
+# Configuration:
+#   INSTANCE  passed as $1 on the crontab command line -- a literal value
+#             baked into the job command by new-workflow.sh, or hand-written
+#             in a .scrontab file (see examples/scrontab.example). Falls back
+#             to $INSTANCE / the basename of $WD if no arg is given, which is
+#             what a manual/test invocation typically uses.
+#   WF, DB, WD, and everything else (ROCOTO_MODULE, ROCOTO_MODULEPATH,
+#             ROCOTO_BIN, VERBOSITY, INTERVAL, IDLE_LIMIT, MAX_RUNTIME,
+#             MEM_SAMPLE_INTERVAL, PIN_NODE) come from the environment when
+#             present (e.g. a manual `WF=... DB=... WD=... ./watchdog.sh`
+#             run), else from ~/.config/rocoto-systemd/<instance>.env -- the
+#             file new-workflow.sh/setup_instance.sh write up front, which
+#             this script also rewrites on every successful tick.
+#
+# NOTE: this deliberately does NOT rely on '#SCRON --export=' for anything.
+# On at least one Slurm/scrontab setup, --export was observed to NOT
+# propagate into the job's process environment on scrontab-triggered
+# (re)executions AT ALL -- every exported variable silently missing, every
+# tick, from install onward (see docs/scron-watchdog.md). So INSTANCE is
+# passed as a plain literal argument (nothing for scrontab to substitute),
+# and everything else comes from the persisted .env file, which must already
+# exist before the first tick.
 
 set -u
 
@@ -31,11 +49,28 @@ export XDG_RUNTIME_DIR="${XDG_RUNTIME_DIR:-/run/user/$(id -u)}"
 
 log() { echo "$(date '+%Y-%m-%dT%H:%M:%S')  [watchdog${INSTANCE:+/$INSTANCE}]  $*"; }
 
+# INSTANCE arrives as a literal $1 (see header). Fall back to $INSTANCE in
+# the environment, then the basename of $WD, for manual/test invocation.
+INSTANCE="${1:-${INSTANCE:-}}"
+[ -n "$INSTANCE" ] || INSTANCE="$(basename "${WD:-}" 2>/dev/null || true)"
+
+ENVDIR="${HOME}/.config/rocoto-systemd"
+ENVFILE="${ENVDIR}/${INSTANCE:-unknown}.env"
+
+# WF/DB/WD are not expected to be in the environment at all in the normal
+# (scrontab) case -- read them from the persisted EnvironmentFile for this
+# instance. An explicit environment (e.g. a manual test run) still wins if
+# present.
+if [ -z "${WF:-}" ] || [ -z "${DB:-}" ] || [ -z "${WD:-}" ]; then
+  # shellcheck disable=SC1090
+  [ -f "$ENVFILE" ] && . "$ENVFILE"
+fi
+
+[ -n "${INSTANCE:-}" ] || { echo "watchdog.sh: INSTANCE not set (pass it as \$1 on the crontab command line)" >&2; exit 78; }
 for v in WF DB WD; do
   eval "val=\${$v:-}"
-  [ -n "$val" ] || { echo "watchdog.sh: $v not set (add it to '#SCRON --export=')" >&2; exit 78; }
+  [ -n "$val" ] || { echo "watchdog.sh: $v not set, and no fallback found at $ENVFILE (run new-workflow.sh or setup_instance.sh to create it)" >&2; exit 78; }
 done
-INSTANCE="${INSTANCE:-$(basename "$WD")}"
 UNIT="rocoto-workflow@${INSTANCE}.service"
 
 # --- node isolation --------------------------------------------------------
@@ -57,11 +92,11 @@ if ! wait_user_manager; then
   exit 1
 fi
 
-ENVDIR="${HOME}/.config/rocoto-systemd"
-ENVFILE="${ENVDIR}/${INSTANCE}.env"
 mkdir -p "$ENVDIR"
 
-# Sync the EnvironmentFile from whatever the scrontab exported.
+# Rewrite the EnvironmentFile from whatever this tick resolved (environment
+# override if present, otherwise the file's own last-known-good contents).
+# Keeps it self-correcting even if it's ever hand-edited.
 {
   echo "# written by watchdog.sh $(date)"
   echo "WF=$WF"
