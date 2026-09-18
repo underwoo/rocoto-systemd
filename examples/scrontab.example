@@ -16,7 +16,7 @@
 # scrontab-triggered (re)executions -- every exported var missing, every
 # tick, from install onward. Instead, watchdog.sh reads WF/DB/WD/PIN_NODE/the
 # ROCOTO_* vars/the tunables from ~/.config/rocoto-systemd/<instance>.env,
-# which new-workflow.sh / setup_instance.sh write BEFORE this job ever ticks.
+# which new-workflow.sh writes BEFORE this job ever ticks.
 # The only thing that has to reach the job itself is INSTANCE, passed below
 # as a plain literal argument (not a variable -- nothing for scrontab to
 # substitute or drop).

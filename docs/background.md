@@ -83,7 +83,7 @@ the environment it inherits, and that depends on the entry point:
   configured through `--export=` at all: `INSTANCE` is passed as a plain
   literal argument on the crontab command line, and everything else
   (`WF`/`DB`/`WD`/etc) is read from the persisted `.env` file, which
-  `new-workflow.sh`/`setup_instance.sh` write up front — see
+  `new-workflow.sh` writes up front — see
   [`scron-watchdog.md`](scron-watchdog.md).
 * **`install.sh`, `new-workflow.sh`** — your interactive shell's exported
   environment.
