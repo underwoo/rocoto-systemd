@@ -76,9 +76,15 @@ the environment it inherits, and that depends on the entry point:
 * **`watchdog.sh` (scron)** — built by Slurm. `sbatch` documents that an
   explicit `--export=` list makes it load your *login* environment (roughly
   `su - $USER -c env`, which does read `~/.bash_profile`); the `scrontab` docs
-  don't say whether that applies to scron jobs, so assume it may. Only the
-  variables `watchdog.sh` lists are copied into the `.env` file the service
-  reads.
+  don't say whether that applies to scron jobs. In practice, on at least one
+  Slurm/scrontab setup, `--export=` was confirmed to not reach the job's
+  process environment at all on scrontab-triggered (re)executions -- every
+  listed var missing, every tick, from install onward. So `watchdog.sh` isn't
+  configured through `--export=` at all: `INSTANCE` is passed as a plain
+  literal argument on the crontab command line, and everything else
+  (`WF`/`DB`/`WD`/etc) is read from the persisted `.env` file, which
+  `new-workflow.sh`/`setup_instance.sh` write up front — see
+  [`scron-watchdog.md`](scron-watchdog.md).
 * **`install.sh`, `new-workflow.sh`** — your interactive shell's exported
   environment.
 

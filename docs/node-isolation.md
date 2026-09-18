@@ -14,7 +14,9 @@ stale, steals it, and you get concurrent DB writes.
 
 `new-workflow.sh` asks *"Pin this instance to a single node?"*. If yes, the node
 name is written as `PIN_NODE=<node>` in `<instance>.env` (and, if you generate a
-scron watchdog, into its `--export` list and `#SCRON --nodelist=`).
+scron watchdog, into `#SCRON --nodelist=` too). `watchdog.sh` reads `PIN_NODE`
+from `<instance>.env` (not from `--export=`, which it doesn't use at all —
+see [`scron-watchdog.md`](scron-watchdog.md)), the same as `WF`/`DB`/`WD`.
 
 It is then enforced in three places:
 

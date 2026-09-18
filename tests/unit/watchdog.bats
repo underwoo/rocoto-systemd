@@ -58,12 +58,26 @@ EOF
 
 # --------------------------------------------------------- preconditions ----
 
-@test "missing WF exits 78 and names the scron export list" {
+@test "missing WF exits 78 and names the fallback env file" {
   unset WF
   run "$WATCHDOG"
   assert_status 78
   assert_contains "$output" "WF not set"
-  assert_contains "$output" "#SCRON --export="
+  assert_contains "$output" "$ENVFILE"
+}
+
+@test "missing WF recovers from a pre-existing env file (no --export needed)" {
+  mkdir -p "$(dirname "$ENVFILE")"
+  {
+    echo "WF=$WF"
+    echo "DB=$DB"
+    echo "WD=$WD"
+  } > "$ENVFILE"
+  unset WF DB WD
+  rocoto_is Active
+  run "$WATCHDOG"
+  assert_status 0
+  assert_stub_called "systemctl --user start rocoto-workflow@testwf.service"
 }
 
 @test "wrong node exits 71 and suggests --nodelist" {

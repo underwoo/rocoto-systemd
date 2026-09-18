@@ -88,8 +88,8 @@ Two conventions worth keeping:
   "`RestartPreventExitStatus` is 78"; it asserts that the code in the unit file
   is the code `loop.sh` actually exits with, and `node_guard.bats` that the
   guard's wrong-node exit is one `ExecCondition` treats as a skip. Same for
-  the env-file path, the log path, and the scrontab export list versus the
-  variables `watchdog.sh` reads. These are the couplings nothing else notices.
+  the env-file path, the log path, and the generated env file's variables versus
+  the ones `watchdog.sh` reads. These are the couplings nothing else notices.
 * **Answers as arrays, not here-documents.** In `new_workflow.bats` a blank
   line means "accept the default", so a here-doc with a miscounted blank line
   silently shifts every later answer by one and still passes. One array element
