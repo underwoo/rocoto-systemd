@@ -22,8 +22,8 @@
 #             MEM_SAMPLE_INTERVAL, PIN_NODE) come from the environment when
 #             present (e.g. a manual `WF=... DB=... WD=... ./watchdog.sh`
 #             run), else from ~/.config/rocoto-systemd/<instance>.env -- the
-#             file new-workflow.sh/setup_instance.sh write up front, which
-#             this script also rewrites on every successful tick.
+#             file new-workflow.sh writes up front, which this script also
+#             rewrites on every successful tick.
 #
 # NOTE: this deliberately does NOT rely on '#SCRON --export=' for anything.
 # On at least one Slurm/scrontab setup, --export was observed to NOT
@@ -57,19 +57,53 @@ INSTANCE="${1:-${INSTANCE:-}}"
 ENVDIR="${HOME}/.config/rocoto-systemd"
 ENVFILE="${ENVDIR}/${INSTANCE:-unknown}.env"
 
-# WF/DB/WD are not expected to be in the environment at all in the normal
-# (scrontab) case -- read them from the persisted EnvironmentFile for this
-# instance. An explicit environment (e.g. a manual test run) still wins if
-# present.
-if [ -z "${WF:-}" ] || [ -z "${DB:-}" ] || [ -z "${WD:-}" ]; then
-  # shellcheck disable=SC1090
-  [ -f "$ENVFILE" ] && . "$ENVFILE"
-fi
+# Every variable the persisted .env file may define. Used both as the
+# allow-list for load_persisted_env (below) and to decide, var-by-var, which
+# ones an explicit environment should override.
+ENV_VARS="WF DB WD PIN_NODE ROCOTO_MODULE ROCOTO_MODULEPATH ROCOTO_BIN \
+VERBOSITY INTERVAL IDLE_LIMIT MAX_RUNTIME MEM_SAMPLE_INTERVAL SERVICE_LOG MEM_LOG"
+
+# Read KEY=VALUE lines from the persisted EnvironmentFile without treating it
+# as executable shell. This is the same file systemd's EnvironmentFile=
+# consumes (as inert literal text); sourcing it as bash would give it a
+# looser trust boundary than systemd itself does.
+load_persisted_env() {
+  local file="$1" line key val
+  [ -f "$file" ] || return 0
+  while IFS= read -r line || [ -n "$line" ]; do
+    case "$line" in
+      ''|'#'*) continue ;;
+      *=*) ;;
+      *) continue ;;
+    esac
+    key="${line%%=*}" val="${line#*=}"
+    case " $ENV_VARS " in
+      *" $key "*) printf -v "$key" '%s' "$val" ;;
+    esac
+  done < "$file"
+}
+
+# WF/DB/WD/PIN_NODE/etc are not expected to be in the environment at all in
+# the normal (scrontab) case -- read them from the persisted EnvironmentFile
+# for this instance. Always consult the file (so an optional var like
+# PIN_NODE is never skipped just because WF/DB/WD happen to already be set),
+# but an explicit environment (e.g. a manual test run) still wins, var by
+# var, if present.
+for v in $ENV_VARS; do
+  printf -v "_explicit_$v" '%s' "${!v:-}"
+done
+
+load_persisted_env "$ENVFILE"
+
+for v in $ENV_VARS; do
+  ref="_explicit_$v"
+  [ -n "${!ref:-}" ] && printf -v "$v" '%s' "${!ref}"
+done
 
 [ -n "${INSTANCE:-}" ] || { echo "watchdog.sh: INSTANCE not set (pass it as \$1 on the crontab command line)" >&2; exit 78; }
 for v in WF DB WD; do
   eval "val=\${$v:-}"
-  [ -n "$val" ] || { echo "watchdog.sh: $v not set, and no fallback found at $ENVFILE (run new-workflow.sh or setup_instance.sh to create it)" >&2; exit 78; }
+  [ -n "$val" ] || { echo "watchdog.sh: $v not set, and no fallback found at $ENVFILE (run new-workflow.sh to create it)" >&2; exit 78; }
 done
 UNIT="rocoto-workflow@${INSTANCE}.service"
 

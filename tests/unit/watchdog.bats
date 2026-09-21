@@ -80,6 +80,49 @@ EOF
   assert_stub_called "systemctl --user start rocoto-workflow@testwf.service"
 }
 
+@test "an explicit WF/DB survives even when WD is missing and the file disagrees" {
+  mkdir -p "$(dirname "$ENVFILE")"
+  {
+    echo "WF=/stale/from-file.xml"
+    echo "DB=/stale/from-file.db"
+    echo "WD=$WD"
+  } > "$ENVFILE"
+  unset WD
+  rocoto_is Active
+  run "$WATCHDOG"
+  assert_status 0
+  assert_contains "$(cat "$ENVFILE")" "WF=$WF"
+  assert_contains "$(cat "$ENVFILE")" "DB=$DB"
+  refute_contains "$(cat "$ENVFILE")" "/stale/from-file"
+}
+
+@test "PIN_NODE from the persisted file is honored even when WF/DB/WD are already set" {
+  mkdir -p "$(dirname "$ENVFILE")"
+  echo "PIN_NODE=gaea51" > "$ENVFILE"
+  stub hostname <<'EOF'
+echo gaea52
+EOF
+  run "$WATCHDOG"
+  assert_status 71
+  assert_contains "$output" "wrong node"
+  refute_stub_called "systemctl --user start"
+}
+
+@test "a shell metacharacter in the persisted file is never executed" {
+  mkdir -p "$(dirname "$ENVFILE")"
+  MARKER="$SANDBOX/pwned"
+  {
+    printf 'WF=$(touch %s)\n' "$MARKER"
+    echo "DB=$DB"
+    echo "WD=$WD"
+  } > "$ENVFILE"
+  unset WF DB WD
+  rocoto_is Active
+  run "$WATCHDOG"
+  [ ! -e "$MARKER" ]
+  assert_contains "$(cat "$ENVFILE")" 'WF=$(touch'
+}
+
 @test "wrong node exits 71 and suggests --nodelist" {
   stub hostname <<'EOF'
 echo gaea52

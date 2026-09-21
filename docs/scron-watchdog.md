@@ -42,9 +42,9 @@ failed its `WF`/`DB`/`WD` check on every single tick, from the moment it was
 installed, silently (`sacct` shows it "running" and exiting non-zero each
 time, but nothing surfaces that unless you go looking).
 
-So configuration travels a different way: `new-workflow.sh` (and
-`setup_instance.sh`) write `~/.config/rocoto-systemd/<instance>.env` up front,
-*before* the watchdog ever ticks, and `watchdog.sh` reads `WF`/`DB`/`WD`/
+So configuration travels a different way: `new-workflow.sh` writes
+`~/.config/rocoto-systemd/<instance>.env` up front, *before* the watchdog
+ever ticks, and `watchdog.sh` reads `WF`/`DB`/`WD`/
 `PIN_NODE`/the `ROCOTO_*` vars/the tunables from that file. The only thing
 that has to reach the watchdog job itself is `INSTANCE`, which is written as a
 plain, literal argument on the crontab command line
@@ -54,8 +54,8 @@ substitute or drop.
 One consequence: the `<instance>.env` file must exist before the watchdog's
 first tick. Going through `new-workflow.sh` this is automatic (it always
 writes the `.env` file, whether or not you opt into the watchdog). If you
-hand-write a `.scrontab` without ever running `new-workflow.sh` or
-`setup_instance.sh` for that instance, create the `.env` file yourself first
+hand-write a `.scrontab` without ever running `new-workflow.sh` for that
+instance, create the `.env` file yourself first
 (see `examples/instance.env.example`) -- the watchdog can no longer bootstrap
 it from nothing.
 
